@@ -1,0 +1,7 @@
+domain: php-json-schema.wex
+global:
+  name: php-json-schema
+  type: php-package
+  version: 1.0.0
+wex:
+  version: 6.0.183
