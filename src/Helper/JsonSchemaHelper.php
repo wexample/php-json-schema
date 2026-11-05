@@ -91,10 +91,10 @@ final class JsonSchemaHelper
         return array_map(self::formatError(...), self::leafErrors($result->error()));
     }
 
-    /** A schema held as an array, as an object again. */
+    /** A schema held as an array, as an object again — an empty one is `{}`, which accepts anything. */
     public static function toObject(array|object $schema): object
     {
-        return json_decode(json_encode($schema, JSON_THROW_ON_ERROR), false, 512, JSON_THROW_ON_ERROR);
+        return json_decode(json_encode($schema, JSON_THROW_ON_ERROR | JSON_FORCE_OBJECT * (int) ($schema === [])), false, 512, JSON_THROW_ON_ERROR);
     }
 
     /** A schema as an array, for a store that keeps arrays. */

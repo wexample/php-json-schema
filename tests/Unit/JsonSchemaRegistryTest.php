@@ -47,6 +47,14 @@ class JsonSchemaRegistryTest extends TestCase
         $this->assertNotSame([], $registry->validate('text_input', ['type' => 'text', 'name' => 'city', 'color' => 'red']));
     }
 
+    public function testAnEmptySchemaAcceptsAnything(): void
+    {
+        $registry = (new JsonSchemaRegistry())->add('core/data', []);
+
+        $this->assertEquals(new \stdClass(), $registry->resolve('core/data'));
+        $this->assertSame([], $registry->validate('core/data', ['any' => [1, true]]));
+    }
+
     public function testACircleIsRefused(): void
     {
         $registry = (new JsonSchemaRegistry())
