@@ -1,7 +1,7 @@
 {
   "name": "wexample/php-json-schema",
   "description": "Named JSON schemas resolved into one document — references in place, inheritance folded — and data checked against them",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "type": "library",
   "license": "MIT",
   "autoload": {
