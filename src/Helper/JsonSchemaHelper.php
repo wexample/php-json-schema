@@ -23,10 +23,13 @@ final class JsonSchemaHelper
      * refused as what is additional — the one reading of
      * `unevaluatedProperties` every validator agrees on.
      */
-    public static function fold(mixed $node): mixed
+    public static function fold(mixed $node, ?object $root = null): mixed
     {
+        // The document itself, for a parent named inside it (`#/$defs/…`).
+        $root ??= is_object($node) ? $node : null;
+
         if (is_array($node)) {
-            return array_map(self::fold(...), $node);
+            return array_map(fn (mixed $value): mixed => self::fold($value, $root), $node);
         }
 
         if (! is_object($node)) {
@@ -34,7 +37,7 @@ final class JsonSchemaHelper
         }
 
         foreach (get_object_vars($node) as $key => $value) {
-            $node->{$key} = self::fold($value);
+            $node->{$key} = self::fold($value, $root);
         }
 
         if (isset($node->allOf) && is_array($node->allOf)) {
@@ -42,10 +45,27 @@ final class JsonSchemaHelper
             unset($node->allOf);
             $properties = (array) ($node->properties ?? []);
             $required = is_array($node->required ?? null) ? $node->required : [];
+            $kept = [];
 
             foreach ($entries as $entry) {
                 if (! is_object($entry)) {
                     continue;
+                }
+
+                // A parent named inside the document: the parent itself,
+                // folded in turn. One not found is left to the validator,
+                // as an `allOf` still — a `$ref` beside other words says
+                // the same, and some readers refuse it.
+                if (is_string($entry->{'$ref'} ?? null)) {
+                    $target = self::pointTo($root, $entry->{'$ref'});
+
+                    if (null === $target) {
+                        $kept[] = $entry;
+
+                        continue;
+                    }
+
+                    $entry = self::fold(unserialize(serialize($target)), $root);
                 }
 
                 foreach (get_object_vars($entry) as $key => $value) {
@@ -64,6 +84,9 @@ final class JsonSchemaHelper
             if ($required !== []) {
                 $node->required = array_values(array_unique($required));
             }
+            if ($kept !== []) {
+                $node->allOf = $kept;
+            }
         }
 
         if (property_exists($node, 'unevaluatedProperties')) {
@@ -72,6 +95,30 @@ final class JsonSchemaHelper
         }
 
         return $node;
+    }
+
+    /** What a pointer inside the document names (`#/$defs/name`); null when it names nothing there. */
+    private static function pointTo(?object $root, string $reference): ?object
+    {
+        if (null === $root || ! str_starts_with($reference, '#/')) {
+            return null;
+        }
+
+        $node = $root;
+
+        foreach (explode('/', substr($reference, 2)) as $segment) {
+            $segment = str_replace(['~1', '~0'], ['/', '~'], rawurldecode($segment));
+
+            if (is_object($node) && property_exists($node, $segment)) {
+                $node = $node->{$segment};
+            } elseif (is_array($node) && isset($node[$segment])) {
+                $node = $node[$segment];
+            } else {
+                return null;
+            }
+        }
+
+        return is_object($node) ? $node : null;
     }
 
     /**

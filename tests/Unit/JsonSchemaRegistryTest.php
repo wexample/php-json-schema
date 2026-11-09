@@ -47,6 +47,33 @@ class JsonSchemaRegistryTest extends TestCase
         $this->assertNotSame([], $registry->validate('text_input', ['type' => 'text', 'name' => 'city', 'color' => 'red']));
     }
 
+    public function testAParentNamedInsideTheDocumentIsFoldedIn(): void
+    {
+        $registry = (new JsonSchemaRegistry())->add('scene', [
+            'type' => 'object',
+            'properties' => ['shape' => ['$ref' => '#/$defs/rect']],
+            '$defs' => [
+                'props' => ['properties' => ['id' => ['type' => 'string']]],
+                'rect' => ['type' => 'object', 'allOf' => [['$ref' => '#/$defs/props']], 'properties' => ['width' => ['type' => 'number']], 'required' => ['width'], 'unevaluatedProperties' => false],
+                'odd' => ['allOf' => [['$ref' => '#/$defs/missing']], 'properties' => ['a' => ['type' => 'string']]],
+            ],
+        ]);
+
+        $rect = $registry->resolve('scene')->{'$defs'}->rect;
+
+        // The parent's properties with its own, no `$ref` beside them.
+        $this->assertSame(['width', 'id'], array_keys((array) $rect->properties));
+        $this->assertSame(['width'], $rect->required);
+        $this->assertFalse(property_exists($rect, '$ref'));
+        $this->assertFalse(property_exists($rect, 'allOf'));
+        $this->assertSame([], $registry->validate('scene', ['shape' => ['width' => 2, 'id' => 'a']]));
+        $this->assertNotSame([], $registry->validate('scene', ['shape' => ['width' => 2, 'other' => 1]]));
+
+        // A parent not found is left as an `allOf`, for the validator to say.
+        $odd = $registry->resolve('scene')->{'$defs'}->odd;
+        $this->assertSame('#/$defs/missing', $odd->allOf[0]->{'$ref'});
+    }
+
     public function testAnEmptySchemaAcceptsAnything(): void
     {
         $registry = (new JsonSchemaRegistry())->add('core/data', []);
