@@ -74,6 +74,27 @@ class JsonSchemaRegistryTest extends TestCase
         $this->assertSame('#/$defs/missing', $odd->allOf[0]->{'$ref'});
     }
 
+    // Resolving rewrites the nested objects it walks: the stored schema, and
+    // what a later add() resolves against, must keep the words they were given.
+    public function testResolvingLeavesTheSchemaAsItWasAdded(): void
+    {
+        $registry = (new JsonSchemaRegistry())
+            ->add('core/text', ['type' => 'string', 'properties' => ['label' => ['allOf' => [['type' => 'string']], 'maxLength' => 5]]])
+            ->add('core/title', ['properties' => ['main' => ['$ref' => 'core/text']]]);
+        $before = $registry->get('core/text');
+
+        $registry->resolve('core/title');
+        $registry->resolve('core/text');
+
+        $this->assertEquals($before, $registry->get('core/text'));
+        $this->assertObjectHasProperty('allOf', $registry->get('core/text')->properties->label);
+        $this->assertSame('core/text', $registry->get('core/title')->properties->main->{'$ref'});
+
+        // A copy handed out is the caller's own.
+        $registry->get('core/text')->properties->label->maxLength = 99;
+        $this->assertSame(5, $registry->get('core/text')->properties->label->maxLength);
+    }
+
     public function testAnEmptySchemaAcceptsAnything(): void
     {
         $registry = (new JsonSchemaRegistry())->add('core/data', []);

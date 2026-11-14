@@ -62,10 +62,15 @@ class JsonSchemaRegistry
         return array_keys($this->schemas);
     }
 
-    /** The schema as it was added. */
+    /**
+     * The schema as it was added. A copy to the last nested object: a clone
+     * would still share its properties, and resolving one — inlining its
+     * references, folding its `allOf` — rewrites them in place, so the
+     * stored schema would read as resolved the next time it is asked for.
+     */
     public function get(string $name): object
     {
-        return clone ($this->schemas[$name] ?? throw UnknownSchemaException::forName($name));
+        return unserialize(serialize($this->schemas[$name] ?? throw UnknownSchemaException::forName($name)));
     }
 
     /** The schema whole: what it refers to in place, its inheritance folded. */
